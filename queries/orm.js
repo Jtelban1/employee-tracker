@@ -1,5 +1,4 @@
 const inquirer = require("inquirer");
-
 const orm = class Orm {
     constructor(connection) {
         this.connection = connection;
@@ -12,27 +11,57 @@ const orm = class Orm {
     getTable(entity, cb) {
         this.connection.query("SELECT * FROM " + entity, cb);
     }
-    insert(entity, cb) {
+    getEntity(entity, id, cb) {
+        this.connection.query(
+            "SELECT * FROM " + entity + " WHERE id = " + parseInt(id),
+            cb
+        );
+    }
+    generateQuestions(entity, row = false) {
         const fields = this.schema[entity];
         let questions = [];
+        let defaultValue;
         fields.forEach((fieldName) => {
+            if (row) {
+                defaultValue = row[fieldName];
+            } else {
+                defaultValue = "";
+            }
             questions.push({
                 name: fieldName,
                 type: "input",
                 message: "What is the " + fieldName + "?",
+                default: defaultValue,
             });
         });
+        return questions;
+    }
+    generateQuery(entity, questions, where = false, cb) {
         inquirer.prompt(questions).then((answers) => {
-            let insert = "INSERT INTO " + entity + " SET ";
+            let q = (!where ? "INSERT INTO " : "UPDATE ") + entity + " SET ";
             Object.keys(answers).forEach((key, i) => {
-                insert +=
-                    (i > 0 ? ", " : "") + key + '= "' + answers[key] + '"';
+                q += (i > 0 ? ", " : "") + key + '= "' + answers[key] + '"';
             });
-
-            this.connection.query(insert, (err, res) => {
+            if (where) {
+                q += " WHERE ";
+                Object.keys(where).forEach((column) => {
+                    q += column + " = " + where[column];
+                });
+            }
+            this.connection.query(q, (err, res) => {
                 cb();
             });
         });
+    }
+    update(entity, id, cb) {
+        this.getEntity(entity, id, (err, row) => {
+            const questions = this.generateQuestions(entity, row[0]);
+            this.generateQuery(entity, questions, { id: id }, cb);
+        });
+    }
+    insert(entity, cb) {
+        const questions = this.generateQuestions(entity);
+        this.generateQuery(entity, questions, false, cb);
     }
 };
 module.exports = orm;

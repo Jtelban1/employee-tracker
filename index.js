@@ -7,14 +7,22 @@ const models = new orm(db.connection);
 
 // what do you want to do?
 
-let position;
+let memorizedEntity;
+
+const choices = ["add a new entry", "list entries", "exit"];
+
+const deepChoices = ["edit entry"];
+
+let usedChoices = [];
 
 const questions = [
     {
         name: "task",
         message: "What would you like to do?",
         type: "list",
-        choices: ["add a new entry", "list entries", "exit"],
+        choices: function () {
+            return usedChoices;
+        },
     },
     {
         name: "entity",
@@ -22,10 +30,13 @@ const questions = [
         message: "Which type?",
         choices: ["department", "role", "employee"],
         when: (answers) => {
-            return answers.task !== "exit";
+            return answers.task !== "exit" && answers.task !== "edit entry";
         },
     },
 ];
+
+usedChoices = [...choices];
+
 let program = {
     async start() {
         let answers = await inquirer.prompt(questions);
@@ -37,6 +48,9 @@ let program = {
                 // which entry?
                 program.list(answers.entity);
                 break;
+            case "edit entry":
+                program.update(memorizedEntity);
+                break;
             case "exit":
                 process.exit();
                 break;
@@ -47,9 +61,22 @@ let program = {
             program.list(entity);
         });
     },
-    update(id, entity) {},
-    delete(id, entity) {},
+    update(entity) {
+        inquirer
+            .prompt({
+                name: "id",
+                message: "which id do you want to update?",
+                type: "input",
+            })
+            .then((res) => {
+                models.update(entity, res.id, (final) => {
+                    program.list(entity);
+                });
+            });
+    },
     list(entity) {
+        usedChoices = [...deepChoices].concat(choices);
+        memorizedEntity = entity;
         models.getTable(entity, (err, res) => {
             console.table(res);
             program.start();
